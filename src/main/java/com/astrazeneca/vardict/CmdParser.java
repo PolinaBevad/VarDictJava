@@ -96,13 +96,13 @@ public class CmdParser {
         config.columnForChromosome = getColumnValue(cmd, "c", -1);
 
         config.numberNucleotideToExtend = getIntValue(cmd, "x", 0);
-        config.freq = getDoubleValue(cmd, "f", 0.05d);
+        config.freq = getDoubleValue(cmd, "f", 0.01d);
         config.minr = getIntValue(cmd, "r", 2);
         config.minb = getIntValue(cmd, "B", 2);
         if (cmd.hasOption("Q")) {
             config.mappingQuality = ((Number)cmd.getParsedOptionValue("Q")).intValue();
         }
-        config.goodq = getIntValue(cmd, "q", 25);
+        config.goodq = getDoubleValue(cmd, "q", 22.5);
         config.mismatch =  getIntValue(cmd, "m", 8);
         config.trimBasesAfter = getIntValue(cmd, "T", 0);
         config.vext = getIntValue(cmd, "X", 3);
@@ -132,6 +132,22 @@ public class CmdParser {
             config.validationStringency = ValidationStringency.valueOf(cmd.getParsedOptionValue("VS").toString().toUpperCase());
         }
 
+        if (cmd.hasOption("chimeric")) {
+            config.chimeric = true;
+        }
+
+        if (cmd.hasOption("u")) {
+            config.uniqueModeAlignmentEnabled = true;
+        }
+
+        if (cmd.hasOption("UN")) {
+            config.uniqueModeSecondInPairEnabled = true;
+        }
+
+        if (cmd.hasOption("K")) {
+            config.includeNInTotalDepth = true;
+        }
+
         config.threads = Math.max(readThreadsCount(cmd), 1);
 
         return config;
@@ -150,7 +166,10 @@ public class CmdParser {
 //        options.addOption("M", false, "Similar to -D, but will append individual quality and position data instead of mean");
         options.addOption("t", false, "Indicate to remove duplicated reads.  Only one pair with same start positions will be kept");
         options.addOption("3", false, "Indicate to move indels to 3-prime if alternative alignment can be achieved.");
-
+        options.addOption("u", false, "Indicate unique mode, which when mate pairs overlap, the overlapping part will be counted only once using first read only.");
+        options.addOption("UN", false, "Indicate unique mode, which when mate pairs overlap, the overlapping part will be counted only once using forward read only.");
+        options.addOption("chimeric", false, "Indicate to turn off chimeric reads filtering.");
+        options.addOption("K", false, "Include Ns in the total depth calculation");
 
         options.addOption(OptionBuilder.withArgName("bit")
                 .hasArg(true)

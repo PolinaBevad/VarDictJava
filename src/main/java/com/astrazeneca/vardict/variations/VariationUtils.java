@@ -244,20 +244,20 @@ public class VariationUtils {
         if (vref.highQualityToLowQualityRatio < config.qratio) {
             return false;
         }
-        if (vref.frequency > 0.35d) {
+        if (vref.frequency > 0.30d) {
             return true;
         }
         if (vref.meanMappingQuality < config.mapq) {
             return false;
         }
-        if (vref.msi >= 13 && vref.frequency <= 0.275d && vref.msint == 1) {
+        if (vref.msi >= 15 && vref.frequency <= 0.25d && vref.msint == 1) {
             return false;
         }
-        if (vref.msi >= 8 && vref.frequency <= 0.2d && vref.msint > 1) {
+        if (vref.msi >= 12 && vref.frequency <= 0.1d && vref.msint > 1) {
             return false;
         }
-        if (vref.strandBiasFlag.equals("2;1") && vref.frequency < 0.25d) {
-            if (type == Variant.Type.SNV || (vref.refAllele.length() <= 3 && vref.varAllele.length() <= 3)) {
+        if (vref.strandBiasFlag.equals("2;1") && vref.frequency < 0.20d) {
+            if (type == Variant.Type.SNV || (vref.refAllele.length() < 3 && vref.varAllele.length() < 3)) {
                 return false;
             }
         }

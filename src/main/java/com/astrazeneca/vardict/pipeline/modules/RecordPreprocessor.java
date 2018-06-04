@@ -120,6 +120,8 @@ public class RecordPreprocessor {
             return false;
         }
 
+        CigarUtils.cleanupCigar(record);
+
         final String mateReferenceName = SAMFileParser.getMateReferenceName(record);
 
         // filter duplicated reads if option -t is set

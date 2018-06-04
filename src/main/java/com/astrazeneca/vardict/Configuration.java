@@ -85,7 +85,7 @@ public class Configuration {
     /**
      * The phred score for a base to be considered a good call
      */
-    public int goodq; // -q, default = 23
+    public double goodq; // -q, default = 22.5
 
     public final int buffer = 200;
 
@@ -180,6 +180,30 @@ public class Configuration {
      * Threads count
      */
     public int threads;
+
+    /**
+     * Indicate unique mode, which when mate pairs overlap,
+     * the overlapping part will be counted only once using forward read only.
+     */
+    public boolean uniqueModeAlignmentEnabled = false; // -u
+
+    /**
+     * Indicate unique mode, which when mate pairs overlap,
+     * the overlapping part will be counted only once using first read only.
+     */
+    public boolean uniqueModeSecondInPairEnabled = false; // -UN
+
+    /**
+     * Indicate to turn off chimeric reads filtering.  Chimeric reads are artifacts from library construction,
+     * where a read can be split into two segments, each will be aligned within 1-2 read length distance,
+     * but in opposite direction.
+     */
+    public boolean chimeric = false; // --chimeric
+
+    /**
+     * Include Ns in the total depth calculation.
+     */
+    public boolean includeNInTotalDepth = false; // -K
 
     public boolean isColumnForChromosomeSet() {
         return columnForChromosome >= 0;
