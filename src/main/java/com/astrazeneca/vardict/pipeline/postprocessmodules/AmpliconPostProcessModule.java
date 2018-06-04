@@ -51,6 +51,7 @@ public class AmpliconPostProcessModule {
             Variant.Type vartype;
             boolean flag = false;
             Variant vref;
+            List<Variant> vrefList = new ArrayList<>();
             //DNA sequencing coverage
             int nocov = 0;
             //max DNA sequencing coverage (max depth)
@@ -74,22 +75,24 @@ public class AmpliconPostProcessModule {
                 List<Variant> l = vtmp == null ? null : vtmp.variants;
                 Variant refAmpP = vtmp == null ? null : vtmp.referenceVariant;
                 if (l != null && !l.isEmpty()) {
-                    Variant tv = l.get(0);
-                    vcovs.add(tv.totalPosCoverage);
-                    if (tv.totalPosCoverage > maxcov) {
-                        maxcov = tv.totalPosCoverage;
-                    }
-                    vartype = tv.getType();
-                    if (VariationUtils.isGoodVar(tv, refAmpP, vartype, splice)) {
-                        gvs.add(tuple(tv, chr + ":" + S + "-" + E));
-                        if (nt != null && !tv.descriptionString.equals(nt)) {
-                            flag = true;
+                    for (Variant tv : l) {
+                        vcovs.add(tv.totalPosCoverage);
+                        if (tv.totalPosCoverage > maxcov) {
+                            maxcov = tv.totalPosCoverage;
                         }
-                        if (tv.frequency > maxaf) {
-                            maxaf = tv.frequency;
-                            nt = tv.descriptionString;
+                        vartype = tv.getType();
+                        if (VariationUtils.isGoodVar(tv, refAmpP, vartype, splice)) {
+                            gvs.add(tuple(tv, chr + ":" + S + "-" + E));
+                            if (nt != null && !tv.descriptionString.equals(nt)) {
+                                flag = true;
+                            }
+                            if (tv.frequency > maxaf) {
+                                maxaf = tv.frequency;
+                                nt = tv.descriptionString;
+                                vref = tv;
+                            }
+                            goodmap.add(format("%s-%s-%s", amp, tv.refAllele, tv.varAllele));
                         }
-                        goodmap.add(format("%s-%s-%s", amp, tv.refAllele, tv.varAllele));
                     }
                 } else if (refAmpP != null) {
                     vcovs.add(refAmpP.totalPosCoverage);
@@ -119,89 +122,95 @@ public class AmpliconPostProcessModule {
             if (gvs.isEmpty()) { // Only referenece
                 if (instance().conf.doPileup) {
                     if (!ref.isEmpty()) {
-                        vref = ref.get(0);
+                        vrefList.add(ref.get(0));
                     } else {
                         out.println(
                                 join("\t", instance().sample, rg.gene, rg.chr, p, p, "", "", 0, 0, 0, 0, 0, 0, "", 0,
-                                "0;0", 0, 0, 0, 0, 0, "", 0, 0, 0, 0, 0, 0, "", "", 0, 0,
-                                rg.chr + ":", +p + "-" + p, "", 0, 0, 0, 0));
+                                        "0;0", 0, 0, 0, 0, 0, "", 0, 0, 0, 0, 0, 0, "", "", 0, 0,
+                                        rg.chr + ":", +p + "-" + p, "", 0, 0, 0, 0));
                         continue;
                     }
                 } else {
                     continue;
                 }
             } else {
-                vref = gvs.get(0)._1;
+                for (Tuple.Tuple2<Variant, String> goodVariant : gvs) {
+                    vrefList.add(goodVariant._1);
+                }
             }
-            if (flag) { // different good variants detected in different amplicons
-                String gdnt = gvs.get(0)._1.descriptionString;
-                List<Tuple.Tuple2<Variant, String>> gcnt = new ArrayList<>();
-                for (Tuple.Tuple2<Integer, Region> amps : v) {
-                    final Vars vtmp = vars.get(amps._1).get(p);
-                    final Variant variant = vtmp == null ? null : vtmp.varDescriptionStringToVariants.get(gdnt);
-                    if (variant != null && VariationUtils.isGoodVar(variant, vtmp.referenceVariant, null, splice)) {
-                        gcnt.add(tuple(variant, amps._2.chr + ":" + amps._2.start + "-" + amps._2.end));
+            List<Tuple.Tuple2<Variant, String>> goodVariants = gvs;
+            for (int i = 0; i < vrefList.size(); i++) {
+                vref = vrefList.get(i);
+                if (flag) { // different good variants detected in different amplicons
+                    String gdnt = gvs.get(i)._1.descriptionString;
+                    List<Tuple.Tuple2<Variant, String>> gcnt = new ArrayList<>();
+                    for (Tuple.Tuple2<Integer, Region> amps : v) {
+                        final Vars vtmp = vars.get(amps._1).get(p);
+                        final Variant variant = vtmp == null ? null : vtmp.varDescriptionStringToVariants.get(gdnt);
+                        if (variant != null && VariationUtils.isGoodVar(variant, vtmp.referenceVariant, null, splice)) {
+                            gcnt.add(tuple(variant, amps._2.chr + ":" + amps._2.start + "-" + amps._2.end));
+                        }
+                    }
+                    if (gcnt.size() == gvs.size()) {
+                        flag = false;
+                    }
+                    Collections.sort(gcnt, GVS_COMPARATOR);
+                    goodVariants = gcnt;
+                }
+
+                //bad variants
+                List<Tuple.Tuple2<Variant, String>> badv = new ArrayList<>();
+                int gvscnt = goodVariants.size();
+                if (gvscnt != v.size() || flag) {
+                    for (Tuple.Tuple2<Integer, Region> amps : v) {
+                        int amp = amps._1;
+                        Region reg = amps._2;
+                        if (goodmap.contains(format("%s-%s-%s", amp, vref.refAllele, vref.varAllele))) {
+                            continue;
+                        }
+                        // my $tref = $vars[$amp]->{ $p }->{ VAR }->[0]; ???
+                        if (vref.startPosition >= reg.variantsStart && vref.endPosition <= reg.variantsEnd) {
+
+                            String regStr = reg.chr + ":" + reg.start + "-" + reg.end;
+
+                            if (vars.get(amp).containsKey(p) && vars.get(amp).get(p).variants.size() > 0) {
+                                badv.add(tuple(vars.get(amp).get(p).variants.get(0), regStr));
+                            } else if (vars.get(amp).containsKey(p) && vars.get(amp).get(p).referenceVariant != null) {
+                                badv.add(tuple(vars.get(amp).get(p).referenceVariant, regStr));
+                            } else {
+                                badv.add(tuple(null, regStr));
+                            }
+                        } else if ((vref.startPosition < reg.variantsEnd && reg.variantsEnd < vref.endPosition)
+                                || (vref.startPosition < reg.variantsStart && reg.variantsStart < vref.endPosition)) { // the variant overlap with amplicon's primer
+                            if (gvscnt > 1)
+                                gvscnt--;
+                        }
                     }
                 }
-                if (gcnt.size() == gvs.size()) {
+                if (flag && gvscnt < goodVariants.size()) {
                     flag = false;
                 }
-                Collections.sort(gcnt, GVS_COMPARATOR);
-                gvs = gcnt;
-            }
-
-            //bad variants
-            List<Tuple.Tuple2<Variant, String>> badv = new ArrayList<>();
-            int gvscnt = gvs.size();
-            if (gvscnt != v.size() || flag) {
-                for (Tuple.Tuple2<Integer, Region> amps : v) {
-                    int amp = amps._1;
-                    Region reg = amps._2;
-                    if (goodmap.contains(format("%s-%s-%s", amp, vref.refAllele, vref.varAllele))) {
-                        continue;
+                vartype = vref.getType();
+                if (vartype == Variant.Type.complex) {
+                    vref.adjComplex();
+                }
+                out.print(join("\t", instance().sample, rg.gene, rg.chr,
+                        vref.addDelimiterExtended("\t"), gvs.get(0)._2, vartype, gvscnt, gvscnt + badv.size(), nocov, flag ? 1 : 0));
+                if (instance().conf.debug) {
+                    out.print("\t" + vref.DEBUG);
+                }
+                if (instance().conf.debug) {
+                    for (int gvi = 0; gvi < gvs.size(); gvi++) {
+                        Tuple.Tuple2<Variant, String> tp = gvs.get(gvi);
+                        out.print("\tGood" + gvi + " " + join(" ", tp._1.addDelimiter(" "), tp._2));
                     }
-                    // my $tref = $vars[$amp]->{ $p }->{ VAR }->[0]; ???
-                    if (vref.startPosition >= reg.variantsStart && vref.endPosition <= reg.variantsEnd) {
-
-                        String regStr = reg.chr + ":" + reg.start + "-" + reg.end;
-
-                        if (vars.get(amp).containsKey(p) && vars.get(amp).get(p).variants.size() > 0) {
-                            badv.add(tuple(vars.get(amp).get(p).variants.get(0), regStr));
-                        } else if (vars.get(amp).containsKey(p) && vars.get(amp).get(p).referenceVariant != null) {
-                            badv.add(tuple(vars.get(amp).get(p).referenceVariant, regStr));
-                        } else {
-                            badv.add(tuple(null, regStr));
-                        }
-                    } else if ((vref.startPosition < reg.variantsEnd && reg.variantsEnd < vref.endPosition)
-                            || (vref.startPosition < reg.variantsStart && reg.variantsStart < vref.endPosition)) { // the variant overlap with amplicon's primer
-                        if (gvscnt > 1)
-                            gvscnt--;
+                    for (int bvi = 0; bvi < badv.size(); bvi++) {
+                        Tuple.Tuple2<Variant, String> tp = badv.get(bvi);
+                        out.print("\tBad" + bvi + " " + join(" ", tp._1.addDelimiter(" "), tp._2));
                     }
                 }
+                out.println();
             }
-            if (flag && gvscnt < gvs.size()) {
-                flag = false;
-            }
-            vartype = vref.getType();
-            if (vartype == Variant.Type.complex) {
-                vref.adjComplex();
-            }
-            out.print(join("\t", instance().sample, rg.gene, rg.chr,
-                    vref.addDelimiterExtended("\t"), gvs.get(0)._2, vartype, gvscnt, gvscnt + badv.size(), nocov, flag ? 1 : 0));
-            if (instance().conf.debug) {
-                out.print("\t" + vref.DEBUG);
-            }
-            if (instance().conf.debug) {
-                for (int gvi = 0; gvi < gvs.size(); gvi++) {
-                    Tuple.Tuple2<Variant, String> tp = gvs.get(gvi);
-                    out.print("\tGood" + gvi + " " + join(" ", tp._1.addDelimiter(" "), tp._2));
-                }
-                for (int bvi = 0; bvi < badv.size(); bvi++) {
-                    Tuple.Tuple2<Variant, String> tp = badv.get(bvi);
-                    out.print("\tBad" + bvi + " " + join(" ", tp._1.addDelimiter(" "), tp._2));
-                }
-            }
-            out.println();
         }
     }
 }

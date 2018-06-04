@@ -233,36 +233,37 @@ public class SomaticPostProcessModule implements BiConsumer<Scope<Tuple.Tuple2<I
             if (v2.variants.isEmpty()) {
                 return;
             }
-            Variant v2var = v2.variants.get(0);
-            vartype = v2var.getType();
-            if (!isGoodVar(v2var, v2.referenceVariant, vartype, splice)) {
-                return;
-            }
-            // potentail LOH
-            Variant v1nt = getVarMaybe(v1, varn, v2var.descriptionString);
-            if (v1nt != null) {
-                String type = v1nt.frequency < instance().conf.lofreq ? LIKELY_LOH : GERMLINE;
-                if (vartype == Variant.Type.complex) {
-                    v1nt.adjComplex();
+            for (Variant v2var : v2.variants) {
+                vartype = v2var.getType();
+                if (!isGoodVar(v2var, v2.referenceVariant, vartype, splice)) {
+                    return;
                 }
-                String info = join("\t",
-                        v1nt.addDelimiter("\t"), format("%.1f", v1nt.numberOfMismatches),
-                        v2var.addDelimiter("\t"), format("%.1f", v2var.numberOfMismatches)
-                );
-                out.println(constructVariationReportString(type, vartype, v1nt, v2var, info, region));
-            } else {
-                String th1;
-                Variant v1ref = v1.referenceVariant;
-                if (v1ref != null) {
-                    th1 = join("\t", v1ref.addDelimiter("\t"), format("%.1f", v1ref.numberOfMismatches));
+                // potentail LOH
+                Variant v1nt = getVarMaybe(v1, varn, v2var.descriptionString);
+                if (v1nt != null) {
+                    String type = v1nt.frequency < instance().conf.lofreq ? LIKELY_LOH : GERMLINE;
+                    if (vartype == Variant.Type.complex) {
+                        v1nt.adjComplex();
+                    }
+                    String info = join("\t",
+                            v1nt.addDelimiter("\t"), format("%.1f", v1nt.numberOfMismatches),
+                            v2var.addDelimiter("\t"), format("%.1f", v2var.numberOfMismatches)
+                    );
+                    out.println(constructVariationReportString(type, vartype, v1nt, v2var, info, region));
                 } else {
-                    th1 = join("\t", v1.variants.get(0).totalPosCoverage, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    String th1;
+                    Variant v1ref = v1.referenceVariant;
+                    if (v1ref != null) {
+                        th1 = join("\t", v1ref.addDelimiter("\t"), format("%.1f", v1ref.numberOfMismatches));
+                    } else {
+                        th1 = join("\t", v1.variants.get(0).totalPosCoverage, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    }
+                    if (vartype == Variant.Type.complex) {
+                        v2var.adjComplex();
+                    }
+                    String info = join("\t", th1, v2var.addDelimiter("\t"), format("%.1f", v2var.numberOfMismatches));
+                    out.println(constructVariationReportString(STRONG_LOH, vartype, v2var, v2var, info, region));
                 }
-                if (vartype == Variant.Type.complex) {
-                    v2var.adjComplex();
-                }
-                String info = join("\t", th1, v2var.addDelimiter("\t"), format("%.1f", v2var.numberOfMismatches));
-                out.println(constructVariationReportString(STRONG_LOH, vartype, v2var, v2var, info, region));
             }
         }
     }
@@ -314,26 +315,27 @@ public class SomaticPostProcessModule implements BiConsumer<Scope<Tuple.Tuple2<I
         if (variants.variants.isEmpty()) {
             return;
         }
-        Variant var = variants.variants.get(0);
-        variationType = var.getType();
-        if (!isGoodVar(var, variants.referenceVariant, variationType, splice)) {
-            return;
-        }
-        if (variationType == Variant.Type.complex) {
-            var.adjComplex();
-        }
+        for (Variant var : variants.variants) {
+            variationType = var.getType();
+            if (!isGoodVar(var, variants.referenceVariant, variationType, splice)) {
+                return;
+            }
+            if (variationType == Variant.Type.complex) {
+                var.adjComplex();
+            }
 
-        Object[] infoToReport = isFirstCover
-                ? new Object[] {
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        var.addDelimiter("\t"), format("%.1f", var.numberOfMismatches)
-                }
-                : new Object[] {
-                        var.addDelimiter("\t"), format("%.1f", var.numberOfMismatches),
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-                };
+            Object[] infoToReport = isFirstCover
+                    ? new Object[]{
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    var.addDelimiter("\t"), format("%.1f", var.numberOfMismatches)
+            }
+                    : new Object[]{
+                    var.addDelimiter("\t"), format("%.1f", var.numberOfMismatches),
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            };
             String info = join("\t", infoToReport);
-        out.println(constructVariationReportString(varLabel, variationType, var, info, region));
+            out.println(constructVariationReportString(varLabel, variationType, var, info, region));
+        }
     }
 
     /**
