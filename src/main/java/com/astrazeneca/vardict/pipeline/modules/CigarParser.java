@@ -699,7 +699,7 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
             }
 
             if (skipOverlappingReads(record, direction, start)) {
-                skipCigar = true;
+                return new Tuple.Tuple2<>(cigarElementIndex, true);
             }
         }
         if (moffset != 0) {
@@ -708,7 +708,7 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
             start += moffset;
             readPositionExcludingSoftClipped += moffset;
         }
-        return new Tuple.Tuple2<>(cigarElementIndex, skipCigar);
+        return new Tuple.Tuple2<>(cigarElementIndex, false);
     }
 
     /**
