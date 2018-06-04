@@ -252,10 +252,11 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
 
         // perl version: 890
         //Loop over CIGAR records
+        processCigar:
         for (int cigarElementIndex = 0; cigarElementIndex < cigar.numCigarElements(); cigarElementIndex++) {
 
             if (skipOverlappingReads(record, direction, start)) {
-                break;
+                break processCigar;
             }
             //length of segment in CIGAR
             cigarElementLength = cigar.getCigarElement(cigarElementIndex).getLength();
@@ -281,6 +282,35 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
                 case S:
                     //First record in CIGAR
                     if (cigarElementIndex == 0) { // 5' soft clipped
+                        // Ignore large soft clip due to chimeric reads in library construction
+                        if (!instance().conf.chimeric) {
+                            String saTagString = record.getStringAttribute(SAMTag.SA.name());
+                            if (cigarElementLength >= 20 && saTagString != null) {
+                                String[] saTagArray = saTagString.split(",");
+                                String saChromosome = saTagArray[0];
+                                int saPosition = Integer.valueOf(saTagArray[1]);
+                                String saDirectionString = saTagArray[2];
+                                String saCigar = saTagArray[3];
+                                boolean saDirectionIsForward = saDirectionString.equals("+");
+                                Matcher mm = SA_CIGAR_D_S_5clip.matcher(saCigar);
+                                if ((direction && saDirectionIsForward) || (!direction && !saDirectionIsForward)
+                                        && saChromosome.equals(record.getReferenceName())
+                                        && (abs(saPosition - record.getAlignmentStart()) < 2 * readLengthForMatchedBases)
+                                        && mm.find()) {
+                                    readPositionIncludingSoftClipped += cigarElementLength;
+                                    offset = 0;
+                                    start = record.getAlignmentStart();  // had to reset the start due to softclipping adjustment
+                                    if (instance().conf.y) {
+                                        System.err.println(record.getReadName() + " " + record.getReferenceName()
+                                                + " " + record.getAlignmentStart() + " " + record.getMappingQuality()
+                                                + " " + record.getCigarString()
+                                                + " is ignored as chimeric with SA: " +
+                                                saPosition + "," + saDirectionString + "," + saCigar);
+                                    }
+                                    continue;
+                                }
+                            }
+                        }
                         processFirstCigarElementWithSoftClipping(
                                 chrName,
                                 querySequence,
@@ -288,19 +318,44 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
                                 queryQuality,
                                 numberOfMismatches,
                                 direction,
-                                cigarElementIndex,
-                                record,
-                                readLengthForMatchedBases);
+                                cigarElementIndex);
                     } else if (cigarElementIndex == cigar.numCigarElements() - 1) { // 3' soft clipped
+                        // Ignore large soft clip due to chimeric reads in library construction
+                        if (!instance().conf.chimeric) {
+                            String saTagString = record.getStringAttribute(SAMTag.SA.name());
+                            if (cigarElementLength >= 20 && saTagString != null) {
+                                String[] saTagArray = saTagString.split(",");
+                                String saChromosome = saTagArray[0];
+                                int saPosition = Integer.valueOf(saTagArray[1]);
+                                String saDirectionString = saTagArray[2];
+                                String saCigar = saTagArray[3];
+                                boolean saDirectionIsForward = saDirectionString.equals("+");
+                                Matcher mm = SA_CIGAR_D_S_3clip.matcher(saCigar);
+                                if ((direction && saDirectionIsForward) || (!direction && !saDirectionIsForward)
+                                        && saChromosome.equals(record.getReferenceName())
+                                        && (abs(saPosition - record.getAlignmentStart()) < 2 * readLengthForMatchedBases)
+                                        && mm.find()) {
+                                    readPositionIncludingSoftClipped += cigarElementLength;
+                                    offset = 0;
+                                    start = record.getAlignmentStart();  // had to reset the start due to softclipping adjustment
+                                    if (instance().conf.y) {
+                                        System.err.println(record.getReadName() + " " + record.getReferenceName()
+                                                + " " + record.getAlignmentStart() + " " + record.getMappingQuality()
+                                                + " " + record.getCigarString()
+                                                + " is ignored as chimeric with SA: " +
+                                                saPosition + "," + saDirectionString + "," + saCigar);
+                                    }
+                                    continue;
+                                }
+                            }
+                        }
                         processLastCigarElementWithSoftClipping(
                                 querySequence,
                                 mappingQuality,
                                 queryQuality,
                                 numberOfMismatches,
                                 direction,
-                                totalLengthIncludingSoftClipped,
-                                record,
-                                readLengthForMatchedBases);
+                                totalLengthIncludingSoftClipped);
                     }
                     //move read position by cigarElementLength (length of segment in CIGAR)
                     readPositionIncludingSoftClipped += cigarElementLength;
@@ -340,7 +395,7 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
             //End branch on CIGAR segment type
 
             // Now dealing with matching part
-            cigarElementIndex = processCigarMatches(
+            Tuple.Tuple2<Integer,Boolean> cigarElementIndexAndNeedSkip = processCigarMatches(
                     querySequence,
                     mappingQuality,
                     queryQuality,
@@ -351,6 +406,11 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
                     cigarElementIndex,
                     operator,
                     record);
+            cigarElementIndex = cigarElementIndexAndNeedSkip._1;
+
+            if (cigarElementIndexAndNeedSkip._2) {
+                break processCigar;
+            }
             if (start > region.end) { //end if reference position is outside region of interest
                 break;
             }
@@ -371,18 +431,19 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
      * @return index number of CIGAR element; incremented if CIGAR has insertion two segments ahead
      */
     // perl version: 1188
-    private int processCigarMatches(String querySequence,
-                                    int mappingQuality,
-                                    String queryQuality,
-                                    int numberOfMismatches,
-                                    boolean direction,
-                                    int readLengthForMatchedBases,
-                                    int totalLengthIncludingSoftClipped,
-                                    int cigarElementIndex,
-                                    CigarOperator operator,
-                                    SAMRecord record) {
+    private Tuple.Tuple2<Integer,Boolean> processCigarMatches(String querySequence,
+                                                              int mappingQuality,
+                                                              String queryQuality,
+                                                              int numberOfMismatches,
+                                                              boolean direction,
+                                                              int readLengthForMatchedBases,
+                                                              int totalLengthIncludingSoftClipped,
+                                                              int cigarElementIndex,
+                                                              CigarOperator operator,
+                                                              SAMRecord record) {
         int nmoff = 0;
         int moffset = 0;
+        boolean skipCigar = false;
         //Loop over bases of CIGAR segment
         for (int i = offset; i < cigarElementLength; i++) {
             //flag to trim reads at opt_T bases from start or end (depending on direction)
@@ -638,7 +699,7 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
             }
 
             if (skipOverlappingReads(record, direction, start)) {
-                break;
+                skipCigar = true;
             }
         }
         if (moffset != 0) {
@@ -647,7 +708,7 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
             start += moffset;
             readPositionExcludingSoftClipped += moffset;
         }
-        return cigarElementIndex;
+        return new Tuple.Tuple2<>(cigarElementIndex, skipCigar);
     }
 
     /**
@@ -1183,46 +1244,15 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
                                                          String queryQuality,
                                                          int numberOfMismatches,
                                                          boolean direction,
-                                                         int totalLengthIncludingSoftClipped,
-                                                         SAMRecord record,
-                                                         int readLengthForMatchedBases) {
-        // Ignore large soft clip due to chimeric reads in library construction
-        if (!instance().conf.chimeric) {
-            String saTagString = record.getStringAttribute(SAMTag.SA.name());
-            if (cigarElementLength >= 20 && saTagString != null) {
-                String[] saTagArray = saTagString.split(",");
-                String saChromosome = saTagArray[0];
-                int saPosition = Integer.valueOf(saTagArray[1]);
-                String saDirectionString = saTagArray[2];
-                String saCigar = saTagArray[3];
-                boolean saDirectionIsForward = saDirectionString.equals("+");
-                Matcher mm = SA_CIGAR_D_S_3clip.matcher(saCigar);
-                if ((direction && saDirectionIsForward) || (!direction && !saDirectionIsForward)
-                        && saChromosome.equals(record.getReferenceName())
-                        && (abs(saPosition - record.getAlignmentStart()) < 2 * readLengthForMatchedBases)
-                        && mm.find()) {
-                    readPositionIncludingSoftClipped += cigarElementLength;
-                    offset = 0;
-                    start = record.getAlignmentStart();  // had to reset the start due to softclipping adjustment
-                    if (instance().conf.y) {
-                        System.err.println(record.getReadName() + " " + record.getReferenceName()
-                                + " " + record.getAlignmentStart() + " " + record.getMappingQuality()
-                                + " " + record.getCigarString()
-                                + " is ignored as chimeric with SA: " +
-                                saPosition + "," + saDirectionString + "," + saCigar);
-                        }
-                        return;
-                }
-            }
-        }
+                                                         int totalLengthIncludingSoftClipped) {
 
         /*
-    Conditions:
-    1). read position is less than sequence length
-    2). reference base is defined for start
-    3). reference base at start matches read base at descriptionString
-    4). read quality is more than 10
-     */
+        Conditions:
+        1). read position is less than sequence length
+        2). reference base is defined for start
+        3). reference base at start matches read base at descriptionString
+        4). read quality is more than 10
+        */
         while (readPositionIncludingSoftClipped < querySequence.length()
                 && isHasAndEquals(querySequence.charAt(readPositionIncludingSoftClipped), reference, start)
                 && queryQuality.charAt(readPositionIncludingSoftClipped) - 33 > 10) {
@@ -1319,38 +1349,8 @@ public class CigarParser implements Module<RecordPreprocessor, VariationData> {
                                                           String queryQuality,
                                                           int numberOfMismatches,
                                                           boolean direction,
-                                                          int cigarElementIndex,
-                                                          SAMRecord record,
-                                                          int readLengthForMatchedBases) {
-        // Ignore large soft clip due to chimeric reads in library construction
-        if (!instance().conf.chimeric) {
-            String saTagString = record.getStringAttribute(SAMTag.SA.name());
-            if (cigarElementLength >= 20 && saTagString != null) {
-                String[] saTagArray = saTagString.split(",");
-                String saChromosome = saTagArray[0];
-                int saPosition = Integer.valueOf(saTagArray[1]);
-                String saDirectionString = saTagArray[2];
-                String saCigar = saTagArray[3];
-                boolean saDirectionIsForward = saDirectionString.equals("+");
-                Matcher mm = SA_CIGAR_D_S_5clip.matcher(saCigar);
-                if ((direction && saDirectionIsForward) || (!direction && !saDirectionIsForward)
-                        && saChromosome.equals(record.getReferenceName())
-                        && (abs(saPosition - record.getAlignmentStart()) < 2 * readLengthForMatchedBases)
-                        && mm.find()) {
-                    readPositionIncludingSoftClipped += cigarElementLength;
-                    offset = 0;
-                    start = record.getAlignmentStart();  // had to reset the start due to softclipping adjustment
-                    if (instance().conf.y) {
-                        System.err.println(record.getReadName() + " " + record.getReferenceName()
-                                + " " + record.getAlignmentStart() + " " + record.getMappingQuality()
-                                + " " + record.getCigarString()
-                                + " is ignored as chimeric with SA: " +
-                                saPosition + "," + saDirectionString + "," + saCigar);
-                    }
-                    return;
-                }
-            }
-        }
+                                                          int cigarElementIndex) {
+
         // align soft-clipped but matched sequences due to mis-soft-clipping
                         /*
                         Conditions:
