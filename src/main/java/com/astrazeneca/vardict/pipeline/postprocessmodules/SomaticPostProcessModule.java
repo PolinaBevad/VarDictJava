@@ -109,46 +109,47 @@ public class SomaticPostProcessModule implements BiConsumer<Scope<Tuple.Tuple2<I
      * */
     //perl version: 456
     private void printVariationsFromSecondSample(Integer position, Vars v1, Vars v2, Region region, Set<String> splice, PrintStream out) throws IOException {
-        final Variant.Type vartype;
-        Variant v2var = v2.variants.get(0);
-        vartype = v2var.getType();
-        if (!isGoodVar(v2var, v2.referenceVariant, vartype, splice)) {
-            return;
-        }
-        // potential LOH
-        String descriptionString = v2var.descriptionString;
-        String type = STRONG_LOH;
-        Variant v1nt = v1.varDescriptionStringToVariants.computeIfAbsent(descriptionString, k -> new Variant());
-        v1nt.positionCoverage = 0;
-        String newType = EMPTY_STRING;
-        if (v2.varDescriptionStringToVariants.get(descriptionString).positionCoverage < instance().conf.minr + 3) {
-            Tuple.Tuple2<Integer, String> tpl = combineAnalysis(
-                    v2.varDescriptionStringToVariants.get(descriptionString),
-                    v1nt,
-                    region.chr,
-                    position,
-                    descriptionString,
-                    splice,
-                    maxReadLength);
-            maxReadLength = tpl._1;
-            newType = tpl._2;
-            if (FALSE.equals(newType)) {
-                return;
+        for (Variant v2var : v2.variants) {
+            //Variant v2var = v2.variants.get(0);
+            final Variant.Type vartype = v2var.getType();
+            if (!isGoodVar(v2var, v2.referenceVariant, vartype, splice)) {
+                continue;
             }
+            // potential LOH
+            String descriptionString = v2var.descriptionString;
+            String type = STRONG_LOH;
+            Variant v1nt = v1.varDescriptionStringToVariants.computeIfAbsent(descriptionString, k -> new Variant());
+            v1nt.positionCoverage = 0;
+            String newType = EMPTY_STRING;
+            if (v2.varDescriptionStringToVariants.get(descriptionString).positionCoverage < instance().conf.minr + 3) {
+                Tuple.Tuple2<Integer, String> tpl = combineAnalysis(
+                        v2.varDescriptionStringToVariants.get(descriptionString),
+                        v1nt,
+                        region.chr,
+                        position,
+                        descriptionString,
+                        splice,
+                        maxReadLength);
+                maxReadLength = tpl._1;
+                newType = tpl._2;
+                if (FALSE.equals(newType)) {
+                    return;
+                }
+            }
+            String th1;
+            if (newType.length() > 0) {
+                type = newType;
+                th1 = join("\t", v1nt.addDelimiter("\t"), format("%.1f", v1nt.numberOfMismatches));
+            } else {
+                Variant v1ref = v1.referenceVariant;
+                th1 = join("\t", v1ref.addDelimiter("\t"), format("%.1f", v1ref.numberOfMismatches));
+            }
+            if (vartype == Variant.Type.complex) {
+                v2var.adjComplex();
+            }
+            String info = join("\t", th1, v2var.addDelimiter("\t"), format("%.1f", v2var.numberOfMismatches));
+            out.println(constructVariationReportString(type, vartype, v2var, info, region));
         }
-        String th1;
-        if (newType.length() > 0) {
-            type = newType;
-            th1 = join("\t", v1nt.addDelimiter("\t"), format("%.1f", v1nt.numberOfMismatches));
-        } else {
-            Variant v1ref = v1.referenceVariant;
-            th1 = join("\t", v1ref.addDelimiter("\t"), format("%.1f", v1ref.numberOfMismatches));
-        }
-        if (vartype == Variant.Type.complex) {
-            v2var.adjComplex();
-        }
-        String info = join("\t", th1, v2var.addDelimiter("\t"), format("%.1f", v2var.numberOfMismatches));
-        out.println(constructVariationReportString(type, vartype, v2var, info, region));
     }
 
     /**
@@ -236,7 +237,7 @@ public class SomaticPostProcessModule implements BiConsumer<Scope<Tuple.Tuple2<I
             for (Variant v2var : v2.variants) {
                 vartype = v2var.getType();
                 if (!isGoodVar(v2var, v2.referenceVariant, vartype, splice)) {
-                    return;
+                    continue;
                 }
                 // potentail LOH
                 Variant v1nt = getVarMaybe(v1, varn, v2var.descriptionString);
@@ -318,7 +319,7 @@ public class SomaticPostProcessModule implements BiConsumer<Scope<Tuple.Tuple2<I
         for (Variant var : variants.variants) {
             variationType = var.getType();
             if (!isGoodVar(var, variants.referenceVariant, variationType, splice)) {
-                return;
+                continue;
             }
             if (variationType == Variant.Type.complex) {
                 var.adjComplex();
