@@ -182,32 +182,34 @@ The VarDictJava program follows the workflow:
 
 ## Program Options
 
-- `-H`  
+- `-H|-?`  
     Print help page
-- `-h`   
-    Print a header row decribing columns
-- `-i`
+- `-h|--header`   
+    Print a header row describing columns
+- `-i|--splice`   
     Output splicing read counts
 - `-p`   
-    Do pileup regarless the frequency
+    Do pileup regardless the frequency
 - `-C`    
-    Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2
-- `-D`    
+    Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2 (deprecated).
+- `-D|--debug`    
     Debug mode.  Will print some error messages and append full genotype at the end.
-- `-t`   
+- `-t|--dedup`   
     Indicate to remove duplicated reads.  Only one pair with identical start positions will be kept
 - `-3`   
      Indicate to move indels to 3-prime if alternative alignment can be achieved.
-- `-K`
+- `-K`   
      Include Ns in the total depth calculation.
+- `-y|--verbose`   
+    Verbose mode.  Will output variant calling process.
 - `-F bit`  
      The hexical to filter reads. Default: `0x500` (filter 2nd alignments and duplicates).  Use `-F 0` to turn it off.
 - `-z 0/1`       
-    Indicate whether the BED file contains zero-based cooridates, the same way as the Genome browser IGV does.  -z 1 indicates that coordinates in a BED file start from 0. -z 0 indicates that the coordinates start from 1. Default: `1` for a BED file or amplicon BED file.  Use `0` to turn it off. When using `-R` option, it is set to `0`
-- `-a int:float`    
+    Indicate whether the BED file contains zero-based coordinates, the same way as the Genome browser IGV does.  -z 1 indicates that coordinates in a BED file start from 0. -z 0 indicates that the coordinates start from 1. Default: `1` for a BED file or amplicon BED file.  Use `0` to turn it off. When using `-R` option, it is set to `0`
+- `-a|--amplicon int:float`    
     Indicate it is amplicon based calling.  Reads that do not map to the amplicon will be skipped.  A read pair is considered to belong to the amplicon if the edges are less than int bp to the amplicon, and overlap fraction is at least float.  Default: `10:0.95`
 - `-k 0/1`   
-    Indicate whether to perform local realignment.  Default: `1` or yes.  Set to `0` to disable it.
+    Indicate whether to perform local realignment.  Default: `1` or yes.  Set to `0` to disable it. For Ion or PacBio, 0 is recommended.
 - `-G Genome fasta`  
     The reference fasta.  Should be indexed (.fai).  Defaults to: `/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa`
 - `-R Region`  
@@ -246,13 +248,13 @@ The VarDictJava program follows the workflow:
     The phred score for a base to be considered a good call.  Default: 22.5 (for Illumina). For PGM, set it to ~15, as PGM tends to underestimate base quality.
 - `-m INT`   
     If set, reads with mismatches more than `INT` will be filtered and ignored.  Gaps are not counted as mismatches. Valid only for bowtie2/TopHat or BWA aln followed by sampe.  BWA mem is calculated as NM - Indels.  Default: 8, or reads with more than 8 mismatches will not be used.
-- `-T INT`  
+- `-T|--trim INT`  
     Trim bases after `[INT]` bases in the reads
 - `-X INT`   
     Extension of bp to look for mismatches after insersion or deletion.  Default to 3 bp, or only calls when they're within 3 bp.
 - `-P number`  
     The read position filter.  If the mean variants position is less that specified, it is considered false positive.  Default: 5
-- `-Z double`  
+- `-Z--downsample double`  
     For downsampling fraction,  e.g. `0.7` means roughly `70%` downsampling.  Default: No downsampling.  Use with caution.  The downsampling will be random and non-reproducible.
 - `-o Qratio`  
     The `Qratio` of `(good_quality_reads)/(bad_quality_reads+0.5)`.  The quality is defined by `-q` option.  Default: `1.5`
@@ -261,14 +263,14 @@ The VarDictJava program follows the workflow:
 - `-V freq`  
     The lowest frequency in a normal sample allowed for a putative somatic mutations.  Defaults to `0.05`
 - `-I INT`  
-    The indel size.  Default: 120bp
-- `-M INT`
+    The indel size.  Default: 50bp
+- `-M INT`   
     The minimum matches for a read to be considered.  If, after soft-clipping, the matched bp is less than INT, then the 
-    read is discarded.  It's meant for PCR based targeted sequencing where there's no insert and the matching is only the primers.
-    Default: 0, or no filtering
+    read is discarded.  It is meant for PCR based targeted sequencing where there's no insert and the matching is only the primers.
+    Default: 25, or reads with matches less than 25bp will be filtered
 - `-th [threads]`  
     If this parameter is missing, then the mode is one-thread. If you add the     -th parameter, the number of threads equals to the number of processor cores. The parameter -th threads sets the number of threads explicitly.
-- `-VS STRICT | LENIENT | SILENT` 
+- `-VS STRICT | LENIENT | SILENT`  
     How strict to be when reading a SAM or BAM.
      `STRICT`   - throw an exception if something looks wrong.
      `LENIENT`  - Emit warnings but keep going if possible.
@@ -277,7 +279,7 @@ The VarDictJava program follows the workflow:
 - `-u`  
     Indicate unique mode, which when mate pairs overlap, the overlapping part will be counted only once using forward read only.
     Default: unique mode disabled, all reads are counted.
-- `--chimeric`
+- `--chimeric`   
     Indicate to turn off chimeric reads filtering.  Chimeric reads are artifacts from library construction, 
     where a read can be split into two segments, each will be aligned within 1-2 read length distance,
     but in opposite direction. Default: filtering enabled

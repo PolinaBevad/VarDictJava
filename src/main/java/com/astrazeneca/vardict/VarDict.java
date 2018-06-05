@@ -1396,9 +1396,6 @@ public class VarDict {
         Map<String, int[]> spliceCnt = new HashMap<String, int[]>();
 
         String chr = region.chr;
-        if (conf.chromosomeNameIsNumber && chr.startsWith("chr")) { //remove prefix 'chr' if option -C is set
-            chr = region.chr.substring("chr".length());
-        }
 
         for (String bami : bams) {
             String samfilter = conf.samfilter == null || conf.samfilter.isEmpty() ? "" : conf.samfilter;
@@ -4044,7 +4041,7 @@ public class VarDict {
                 gt = String.valueOf(-dellen);
             }
             if (conf.y) {
-                System.err.printf("  Found Realignlgdel: %s %s 5' %s %s %s\n", bp, gt, p, seq, cnt);
+                System.err.printf("  Found Realignlgdel: bp: %s %s 5' clip: %s '%s' %s\n", bp, gt, p, seq, cnt);
             }
             final Variation tv = getVariation(hash, bp, gt);
             tv.qstd = true; // more accurate implementation lat
@@ -4160,7 +4157,7 @@ public class VarDict {
                 }
             }
             if (conf.y) {
-                System.err.printf("  Found Realignlgdel: %s %s 3' %s %s %s\n", bp, gt, p, seq, cnt);
+                System.err.printf("  Found Realignlgdel: bp: %s %s 3' clip: %s '%s' %s\n", bp, gt, p, seq, cnt);
             }
             Variation tv = getVariation(hash, bp, gt);
             tv.qstd = true; // more accurate implementation later

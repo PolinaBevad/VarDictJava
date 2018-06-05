@@ -6,7 +6,7 @@ import com.astrazeneca.vardict.VarDict.BedRowFormat;
 
 public class Configuration {
     /**
-     * Print a header row decribing columns
+     * Print a header row describing columns
      */
     boolean printHeader; //-h
     /**
@@ -19,7 +19,7 @@ public class Configuration {
      */
     int numberNucleotideToExtend; // -x
     /**
-     * Indicate wehther is zero-based cooridates, as IGV does
+     * Indicate whether is zero-based coordinates, as IGV does
      * When use -R option, it's set to false
      */
     Boolean zeroBased; // -z,  default true if set -R
@@ -50,6 +50,10 @@ public class Configuration {
      * For downsampling fraction
      */
     Double downsampling;
+
+    /**
+     * Deprecated
+     */
     boolean chromosomeNameIsNumber; // -C
     /**
      * If set, reads with mapping quality less than INT will be filtered and ignored
@@ -63,7 +67,11 @@ public class Configuration {
      * If set, reads with mismatches more than INT will be filtered and ignored
      */
     int mismatch; //-m, default = 8
-    boolean y; //-y TODO ???
+
+    /**
+     * Verbose output.
+     */
+    boolean y; //-y
     /**
      * The phred score for a base to be considered a good call
      */
@@ -84,7 +92,7 @@ public class Configuration {
     /**
      * The indel size
      */
-    int indelsize = 120; // -I, default 120
+    int indelsize = 50; // -I, default 50
     /**
      * The cutoff to decide whether a positin has read strand bias
      */
@@ -97,16 +105,23 @@ public class Configuration {
      * The minimum # of variance reads
      */
     int minr = 2; // -r, default 2 //TODO -p
+
     boolean debug = false; // -D
     /**
      * The threshold for allele frequency
      */
-    double freq = 0.5; // -f and -p
+    double freq = 0.01; // -f and -p
+
     /**
      * Indicate to move indels to 3-prime if alternative alignment can be achieved
      */
     boolean  moveIndelsTo3 = false; //-3
+
+    /**
+     * The hexical to filter reads. Default: `0x500` (filter 2nd alignments and duplicates).
+     */
     String samfilter = "0x500"; //-F
+
     /**
      * chr:start[-end]
      */
@@ -131,11 +146,25 @@ public class Configuration {
      * The lowest frequency in normal sample allowed for a putative somatic mutations
      */
     double lofreq = 0.05d; // -V default to 0.05
+
+    /**
+     * Any base with quality <= 10 will be consider low quality in soft-clipped seq and extention will stop
+     */
     final int lowqual = 10;
 
-    int minmatch = 0; // -M The minimum matches for a read to be considered
-    boolean outputSplicing = false; // -i Output splicing read counts
+    /**
+     * The minimum matches for a read to be considered
+     */
+    int minmatch = 25; // -M
 
+    /**
+     * Output splicing read counts
+     */
+    boolean outputSplicing = false; // -i
+
+    /**
+     * How strict to be when reading a SAM or BAM.
+     */
     ValidationStringency validationStringency = ValidationStringency.LENIENT;
     
     /**
